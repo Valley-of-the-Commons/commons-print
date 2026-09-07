@@ -1,0 +1,106 @@
+{
+  "active": "bambu-x1c",
+  "profiles": {
+    "bambu-x1c": {
+      "bed": [
+        256,
+        256,
+        256
+      ],
+      "nozzle": 0.4,
+      "note": "Bambu Lab X1-Carbon \u2014 LA M\u00c1QUINA. CoreXY cerrada, hotend all-metal 300 C",
+      "vendor": "bambu",
+      "model": "X1C",
+      "filament_dia": 1.75,
+      "nozzles": [
+        0.2,
+        0.4,
+        0.6,
+        0.8
+      ],
+      "hotend_max_c": 300,
+      "enclosed": true,
+      "ams": true,
+      "materials": [
+        "PLA",
+        "PETG",
+        "TPU",
+        "ABS",
+        "ASA",
+        "PA",
+        "PC",
+        "PA-CF",
+        "PET-CF"
+      ]
+    },
+    "bambu-x1c-02": {
+      "bed": [
+        256,
+        256,
+        256
+      ],
+      "nozzle": 0.2,
+      "note": "X1C con boquilla 0.2 \u2014 detalle fino; el piso de pared baja a 0.4 mm",
+      "vendor": "bambu",
+      "model": "X1C",
+      "nozzles": [
+        0.2
+      ],
+      "hotend_max_c": 300
+    },
+    "bambu-x1c-06": {
+      "bed": [
+        256,
+        256,
+        256
+      ],
+      "nozzle": 0.6,
+      "note": "X1C con boquilla 0.6 \u2014 piezas grandes, r\u00e1pido; piso de pared 1.2 mm",
+      "vendor": "bambu",
+      "model": "X1C",
+      "nozzles": [
+        0.6
+      ],
+      "hotend_max_c": 300
+    },
+    "bambu-a1": {
+      "bed": [
+        256,
+        256,
+        256
+      ],
+      "nozzle": 0.4,
+      "vendor": "bambu",
+      "model": "A1",
+      "note": "Bambu A1 \u2014 abierta, sin c\u00e1mara caliente"
+    },
+    "prusa-mk4": {
+      "bed": [
+        250,
+        210,
+        220
+      ],
+      "nozzle": 0.4,
+      "vendor": "prusa",
+      "model": "MK4",
+      "note": "Prusa MK4"
+    },
+    "resin-small": {
+      "bed": [
+        143,
+        89,
+        175
+      ],
+      "nozzle": 0.05,
+      "vendor": "elegoo",
+      "note": "MSLA clase Mars \u2014 el campo nozzle es la resoluci\u00f3n XY"
+    }
+  },
+  "filament": {
+    "material": "PLA",
+    "density_g_cm3": 1.24,
+    "usd_per_kg": 22.0
+  },
+  "bed_margin_mm": 5.0,
+  "_note": "Geometr\u00eda solamente: cama y boquilla, que es lo que decide si una pieza cabe y si un detalle se puede extruir. Temperaturas, velocidades y retracciones NO viven aqu\u00ed \u2014 esas son de los perfiles del slicer, que son la fuente autoritativa y se actualizan solas con OrcaSlicer."
+}

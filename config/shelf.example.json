@@ -1,0 +1,14 @@
+{
+ "_note": "Copy to shelf.json and fill in. shelf.json is gitignored: it names a live service. The passphrase is never in here \u2014 it comes from the environment or a keychain.",
+ "url": "https://YOUR-PROJECT.supabase.co",
+ "publishable_key": "sb_publishable_...",
+ "rpc": "fs_list",
+ "secret_env": "SHELF_SECRET",
+ "secret_command": [
+  "claudia",
+  "keys",
+  "get",
+  "flowstudio",
+  "FS_SECRET"
+ ]
+}

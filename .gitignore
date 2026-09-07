@@ -1,0 +1,9 @@
+# Everything the gates produce. Regenerable, and a single sliced plate is megabytes.
+runs/
+
+# Your bench, your endpoint. shelf.example.json is the committed one.
+config/shelf.json
+config/bambu.json
+
+__pycache__/
+*.pyc
