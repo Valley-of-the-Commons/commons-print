@@ -5,10 +5,16 @@ Seven small Python files, stdlib only, that take whatever somebody brings — an
 project file, a MakerWorld link — and either hand back a plate-ready job or say, in words
 that person can act on, why not.
 
-Made for a Bambu X1-Carbon standing where other people can queue on it. The problem it
-solves is not slicing. It is that a model with no flat face, a spool that will eat the
-nozzle, and a profile cut for somebody else's machine all look completely fine right up
-until the plate is wasted.
+Made for the makerspace at the Commons Hub, where a Bambu Lab printer with a four-slot
+feeder stands in a room other people walk into. The problem it solves is not slicing. It is
+that a model with no flat face, a spool that will eat the nozzle, and a profile cut for
+somebody else's machine all look completely fine right up until the plate is wasted — and
+the person who brought the file has no way to know that, because knowing it is the whole
+craft.
+
+`commons-spatial`'s SPEC §5 lists that printer among the machines "logged from photographs
+and none of them verified by a human yet". This is the layer that would sit on top of it
+once somebody has. Nothing here is Hub-specific: the machine is a config file.
 
 ```
 workshop.py         all of it behind one command: run, doctor, selftest
@@ -81,6 +87,18 @@ your own hand. `config/shelf.json` — your inventory endpoint — is gitignored
 passphrase comes from your environment or a keychain command, never from a file here.
 
 **It has no interface yet.** This is the engine. The screens and the queue are not written.
+
+## At the Hub specifically
+
+Three joins to the rest of the house, none of them made:
+
+- **The machines in §5 are unverified.** Somebody with a phone and an hour confirms what is
+  actually on the shelf and in the feeder, and `config/printers.json` stops being a guess.
+- **A job belongs to a room.** `commons-spatial` can pin a job onto the point where it lives
+  in the building. A print queue is a list until it knows where the printer is standing.
+- **The inventory is already a table.** `gates/shelf.py` wants a spool list with grams left;
+  the Hub already runs boards and an inventory of two workshops. Pointing one at the other
+  is a config file, not an integration.
 
 ## Where a hand would go furthest
 
