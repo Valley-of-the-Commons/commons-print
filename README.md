@@ -38,6 +38,21 @@ python3 workshop.py selftest    # four shapes with known answers
 python3 workshop.py run part.stl --filament "Bambu PLA Basic"
 ```
 
+`doctor` says where it found the slicer. It looks in the macOS bundle, on `$PATH`
+(`orca-slicer`, `OrcaSlicer`), in the places a Linux package lands, at an `Orca*.AppImage`
+in `~/Applications`, `~/.local/bin` or `/opt`, and last at a flatpak — a flatpak is found
+but only reaches the directories it was granted, so `flatpak override --user
+--filesystem=<this repo>` may still be needed. Two environment variables end the search
+when your install is somewhere else:
+
+```bash
+COMMONS_PRINT_ORCA           # the binary
+COMMONS_PRINT_ORCA_PROFILES  # the vendor profile database, if it is not beside the binary
+```
+
+The second one is what an AppImage needs: it carries its `resources/profiles` inside the
+image, where nothing on disk can read it until the image is mounted.
+
 A run of a cone standing on its point:
 
 ```

@@ -48,7 +48,6 @@ from . import config as CFG
 from . import profiles as P
 
 QUEUE = CFG.RUNS / "queue"
-ORCA_BIN = Path("/Applications/OrcaSlicer.app/Contents/MacOS/OrcaSlicer")
 MW_API = "https://makerworld.com/api/v1/design-service/design/{}"
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/126.0 Safari/537.36")
@@ -236,9 +235,12 @@ def sanitize(src: Path, outdir: Path):
     flag that works; `--export-stls` silently produces nothing.
     """
     outdir.mkdir(parents=True, exist_ok=True)
-    r = subprocess.run([str(ORCA_BIN), "--datadir", str(outdir / "dd"), "--debug", "2",
-                        "--logfile", str(outdir / "convert.log"),
-                        "--export-stl", "--outputdir", str(outdir), str(src)],
+    orca = CFG.orca_command()
+    if not orca:
+        sys.exit("[intake] " + CFG.ORCA_MISSING)
+    r = subprocess.run(orca + ["--datadir", str(outdir / "dd"), "--debug", "2",
+                               "--logfile", str(outdir / "convert.log"),
+                               "--export-stl", "--outputdir", str(outdir), str(src)],
                        capture_output=True, text=True, timeout=600)
     stls = sorted(outdir.rglob("*.stl"))
     if not stls:

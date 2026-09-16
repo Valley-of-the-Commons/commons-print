@@ -73,7 +73,6 @@ from . import config as CFG
 from . import profiles as P
 
 JOBS = CFG.RUNS / "jobs"
-ORCA_BIN = Path("/Applications/OrcaSlicer.app/Contents/MacOS/OrcaSlicer")
 SLICE_TIMEOUT_S = 900
 
 # profiles.py's plate labels are ours; these are the strings OrcaSlicer's enum will accept.
@@ -307,15 +306,16 @@ def cmd_run(argv):
 
     orient = "1" if (P._flag(argv, "--orient") or "off").lower() == "auto" else "0"
     log = outdir / "slicer.log"
-    cmd = [str(ORCA_BIN), "--datadir", str(work / "datadir"), "--debug", "4",
-           "--logfile", str(log),
-           "--load-settings", f"{work/'machine.json'};{work/'process.json'}",
-           "--load-filaments", str(work / "filament.json"),
-           "--orient", orient, "--arrange", "1", "--ensure-on-bed",
-           "--slice", "0",
-           "--export-3mf", "job.3mf",          # note 1: bare filename, never a path
-           "--outputdir", str(outdir / "out"),
-           str(mesh)]
+    cmd = CFG.orca_command() + [
+        "--datadir", str(work / "datadir"), "--debug", "4",
+        "--logfile", str(log),
+        "--load-settings", f"{work/'machine.json'};{work/'process.json'}",
+        "--load-filaments", str(work / "filament.json"),
+        "--orient", orient, "--arrange", "1", "--ensure-on-bed",
+        "--slice", "0",
+        "--export-3mf", "job.3mf",          # note 1: bare filename, never a path
+        "--outputdir", str(outdir / "out"),
+        str(mesh)]
     (outdir / "command.txt").write_text(" \\\n  ".join(cmd) + "\n")
 
     t0 = time.time()
@@ -478,8 +478,8 @@ CMDS = {"run": cmd_run, "matrix": cmd_matrix, "layers": cmd_layers,
         "show": cmd_show, "filaments": P.cmd_filaments}
 
 if __name__ == "__main__":
-    if not ORCA_BIN.exists():
-        sys.exit("[slice] OrcaSlicer not found — brew install --cask orcaslicer")
+    if not CFG.orca_command():
+        sys.exit("[slice] " + CFG.ORCA_MISSING)
     if len(sys.argv) < 2 or sys.argv[1] not in CMDS:
         sys.exit(__doc__)
     sys.exit(CMDS[sys.argv[1]](sys.argv[2:]) or 0)
