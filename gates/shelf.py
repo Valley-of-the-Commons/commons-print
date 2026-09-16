@@ -42,15 +42,17 @@ from . import config as CFG
 
 from . import profiles as P
 
+from .refusal import Refusal, cli
+
 def endpoint():
     """No project reference is committed here. `config/shelf.json` names your own, and it
     is gitignored — see `config/shelf.example.json` for the shape. A repo without one still
     runs every other gate; it just has to be told the filament by name."""
     e = CFG.shelf_endpoint()
     if not e:
-        sys.exit("[shelf] no shelf configured.\n"
-                 "        cp config/shelf.example.json config/shelf.json  and fill it in.\n"
-                 "        Without it, name the filament yourself with --filament.")
+        raise Refusal("shelf.unconfigured", "[shelf] no shelf configured.",
+                      "cp config/shelf.example.json config/shelf.json  and fill it in.\n"
+                      "Without it, name the filament yourself with --filament.")
     return e
 
 # What a material is FOR, in words somebody who has never printed can choose between. The
@@ -77,9 +79,9 @@ def secret(e):
     if cmd:
         s = subprocess.run(cmd, capture_output=True, text=True).stdout.strip()
     if not s:
-        sys.exit(f"[shelf] no shelf passphrase.\n"
-                 f"        set ${e.get('secret_env','SHELF_SECRET')}, or make "
-                 f"`{' '.join(cmd) if cmd else '<secret_command>'}` print one.")
+        raise Refusal("shelf.no_passphrase", "[shelf] no shelf passphrase.",
+                      f"set ${e.get('secret_env','SHELF_SECRET')}, or make "
+                      f"`{' '.join(cmd) if cmd else '<secret_command>'}` print one.")
     return s
 
 
@@ -96,15 +98,16 @@ def rpc(fn=None, body=None):
                        capture_output=True, text=True)
     body_s, _, code = r.stdout.rpartition("\n")
     if code.strip() == "401":
-        sys.exit("[shelf] Supabase refused the publishable key — the project or the key moved")
+        raise Refusal("shelf.key_refused",
+                      "[shelf] Supabase refused the publishable key — the project or the key moved")
     if code.strip() != "200":
         try:
             msg = json.loads(body_s).get("message", body_s)
         except Exception:
             msg = body_s
         if msg == "nope":
-            sys.exit("[shelf] the shelf passphrase is wrong")
-        sys.exit(f"[shelf] {fn} answered {code.strip()}: {msg}")
+            raise Refusal("shelf.wrong_passphrase", "[shelf] the shelf passphrase is wrong")
+        raise Refusal("shelf.unreachable", f"[shelf] {fn} answered {code.strip()}: {msg}")
     return json.loads(body_s)
 
 
@@ -209,4 +212,4 @@ CMDS = {"list": cmd_list, "offer": cmd_offer}
 if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in CMDS:
         sys.exit(__doc__)
-    sys.exit(CMDS[sys.argv[1]](sys.argv[2:]) or 0)
+    sys.exit(cli(CMDS[sys.argv[1]], sys.argv[2:]) or 0)

@@ -28,6 +28,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from gates import config as CFG, profiles as P, mesh as S, stance as ST, intake as IN
+from gates.refusal import Refusal
 
 RUNS = CFG.RUNS / "workshop"
 BAMBU_STUDIO = Path("/Applications/BambuStudio.app")
@@ -132,7 +133,7 @@ def run_gates(src, argv):
         try:
             from gates import shelf
             good, _ = shelf.offer(0)
-        except SystemExit as e:
+        except Refusal as e:
             r.gate("2", "slice", "stop",
                    [str(e), "or name one yourself with --filament"])
             return r
@@ -183,7 +184,7 @@ def run_gates(src, argv):
             r.gate("s", "shelf", "warn",
                    [gone[0]["excluded"] if gone else
                     "that profile is not on the shelf — nothing is loaded with it"])
-    except SystemExit as e:
+    except Refusal as e:
         r.gate("s", "shelf", "skip", [" ".join(str(e).split())])
 
     r.job = v["job"]["3mf"]
@@ -284,6 +285,54 @@ def _box(w, d, h, skip_top=False):
     return t
 
 
+# What `python3 -m gates.shelf list` printed to stderr before there was a Refusal type, and
+# what it has to go on printing. A bench with no inventory service runs into this on its
+# first day, so it is the refusal most worth holding still.
+SHELF_UNCONFIGURED = (
+    "[shelf] no shelf configured.\n"
+    "        cp config/shelf.example.json config/shelf.json  and fill it in.\n"
+    "        Without it, name the filament yourself with --filament.")
+
+
+def _refusal_cases():
+    """A refusal raised inside a library function has to arrive as a value a caller can
+    read, and still reach a terminal as the same text and the same exit code. Both halves
+    are checked, because it is the second half that nobody notices breaking."""
+    import os, tempfile
+    cases = []
+
+    r = Refusal("selftest.shape", "the sentence.", "the first fix line\nthe second")
+    cases.append(("a refusal rebuilds the text sys.exit printed",
+                  r.text() == "the sentence.\n        the first fix line\n        the second"))
+    cases.append(("and is not a SystemExit any more", not isinstance(r, SystemExit)))
+
+    d = Path(tempfile.mkdtemp(prefix="selftest-refusal-"))
+    got = []
+    for name, arg in (("stance.no_file", d / "nothing.stl"),
+                      ("stance.not_a_mesh", d / "notes.txt")):
+        if arg.suffix == ".txt":
+            arg.write_text("not a mesh\n")
+        try:
+            ST._load(arg)
+            got.append(None)
+        except Refusal as e:
+            got.append(e.code)
+        except SystemExit:
+            got.append("SystemExit")
+    cases.append((f"stance._load raises {got[0]} and {got[1]}",
+                  got == ["stance.no_file", "stance.not_a_mesh"]))
+
+    # The terminal half, run as a terminal runs it: a config directory with no shelf.json in
+    # it, which is the state every fresh clone is in.
+    env = dict(os.environ, COMMONS_PRINT_CONFIG=str(d / "config"))
+    (d / "config").mkdir(exist_ok=True)
+    out = subprocess.run([sys.executable, "-m", "gates.shelf", "list"],
+                         capture_output=True, text=True, cwd=HERE, env=env)
+    cases.append(("the shelf CLI says it the same way, and still exits 1",
+                  out.returncode == 1 and out.stderr.rstrip("\n") == SHELF_UNCONFIGURED))
+    return cases
+
+
 def cmd_selftest(argv):
     """Known shapes with known answers. Each case names the gate that must fire, so a gate
     that quietly stops refusing anything shows up here rather than on the plate."""
@@ -315,7 +364,12 @@ def cmd_selftest(argv):
         for g in r.gates:
             if g["state"] == "stop":
                 print(f"       {' '*20} {g['lines'][0][:90]}")
-    print(f"\n  {'✅ every gate fired where it should' if not bad else STOP + f' {bad} gate(s) did not behave'}\n")
+    print("\n  refusals · the same sentences, carried rather than exited\n")
+    for name, hit in _refusal_cases():
+        bad += 0 if hit else 1
+        print(f"    {OK if hit else STOP} {name}")
+
+    print(f"\n  {'✅ every gate fired where it should' if not bad else STOP + f' {bad} check(s) did not behave'}\n")
     return 1 if bad else 0
 
 

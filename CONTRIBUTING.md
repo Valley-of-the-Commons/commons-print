@@ -44,5 +44,11 @@ inheritance is resolved here rather than by the slicer. A comment that restates 
 above it is worse than none. Findings that cost an afternoon go in `docs/orca-cli.md` so
 they cost it once.
 
+A library function says no by raising a `Refusal` (`gates/refusal.py`), never by calling
+`sys.exit`. The exit belongs to `__main__`, where `refusal.cli` turns it back into the same
+sentence on stderr and the same exit code. `usage:` lines stay `sys.exit` — being called
+with the wrong arguments is a fact about a command line. The reason is the screens: a
+request handler that calls a gate and gets `sys.exit` dies with the response half-written.
+
 Numbers in prose are measured, not estimated. "4h19m against the correct 1h13m" is worth
 writing down; "much slower" is not.
