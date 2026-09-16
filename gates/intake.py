@@ -57,6 +57,19 @@ MESH_OK = {".stl", ".3mf", ".step", ".stp", ".obj"}
 MAX_FILE_MB = 200          # the upload cap
 MAX_UNPACKED_MB = 800      # what a .3mf is allowed to become. A zip bomb dies here.
 
+# And the ratio, because the cap alone is a slow door. 20 MB of zeros is 19 KB on disk and
+# 1028:1 — it never reaches 800 MB, and whoever opens it reaches 20 MB of memory first.
+# Measured against nine real Bambu project files on this bench, the whole-container ratio
+# runs 1.6:1 to 5.0:1 and the worst single member over 1 MB is 7.7:1, so 200:1 is twenty-six
+# times clear of anything a model has been seen to do.
+MAX_RATIO = 200
+RATIO_FLOOR_MB = 4         # under this a high ratio is a stub or an empty file, not a bomb
+
+# What a container carrying these means, and why the answer is no rather than "discard it":
+GCODE_SUFFIXES = (".gcode", ".gcode.gz", ".gco", ".g", ".nc")
+SCRIPT_SUFFIXES = (".py", ".sh", ".bash", ".zsh", ".bat", ".cmd", ".ps1", ".pl", ".rb",
+                   ".exe", ".command")
+
 # printers.json calls it X1C; MakerWorld calls it "X1 Carbon". Its own devModelName is the
 # authority when it is there — BL-P001 is the X1C's model id in Bambu's own machine profile.
 MW_NAME = {"X1C": ("X1 Carbon", "BL-P001"), "X1": ("X1", "BL-P002"), "X1E": ("X1E", "C13"),
@@ -207,15 +220,84 @@ def cmd_link(argv):
 
 # ---------- the file ----------
 
+def contraband(z):
+    """What a container carries that a bench must not accept, as (entry, why) pairs.
+
+    THE RULE IS ALREADY WRITTEN: an incoming file is never printed. sanitize() keeps that
+    rule by handing the container to the slicer and keeping only the triangles that come
+    back — but the slicer is the first thing to read the file, and it reads it whole. A
+    `post_process` list in `Metadata/project_settings.config` is a list of shell commands
+    the slicer knows how to run, written by whoever made the file. Refusing the container
+    before anything opens it is the cheap side of that bet, and it costs a person one
+    sentence about which file to bring instead.
+
+    Sliced G-code is refused for a different reason. A `Metadata/plate_1.gcode` is a plate
+    somebody already cut, for a machine, a nozzle and a spool that are not ours, and the
+    whole stack exists because that plate looks fine right up until it is wasted. There is
+    nothing to gain by accepting it: gate 2 re-slices from local profiles regardless, so
+    what is lost by refusing is a container we were going to throw away anyway.
+
+    NOT on this list: `machine_start_gcode`. Every Bambu project file has one — 20,670
+    characters in the one measured on this bench — and throwing the container away is the
+    answer to it. A rule that refuses every project file teaches nobody anything.
+
+    Reads the table of contents, and at most one config small enough to bound. Extracts
+    nothing, runs nothing. It decides nothing either: it says what is there, and listing()
+    is what refuses, so a screen can show the list without being killed by it."""
+    found, unpacked = [], 0
+    for i in z.infolist():
+        name = i.filename
+        low = name.lower()
+        if name.startswith("/") or ".." in Path(name).parts:
+            found.append((name, "this entry unpacks outside the container — a file that "
+                                "writes over something else is not a model"))
+        unpacked += i.file_size
+        if unpacked > MAX_UNPACKED_MB * 1024 * 1024:
+            found.append((name, f"this .3mf unpacks to more than {MAX_UNPACKED_MB} MB"))
+            break
+        ratio = i.file_size / max(i.compress_size, 1)
+        if i.file_size >= RATIO_FLOOR_MB * 1024 * 1024 and ratio > MAX_RATIO:
+            found.append((name, f"{i.file_size/1e6:.0f} MB out of {i.compress_size/1e6:.2f} MB "
+                                f"on disk, {ratio:.0f}:1 — that is a zip bomb, not a mesh"))
+        if i.is_dir():
+            continue
+        if low.endswith(GCODE_SUFFIXES):
+            found.append((name, "a plate somebody else already sliced, for a machine and a "
+                                "spool that are not ours. Bring the model and the bench cuts it"))
+        if low.endswith(SCRIPT_SUFFIXES):
+            found.append((name, "an executable in a model container. Nothing in a shape "
+                                "needs to be able to run"))
+
+    cfg = next((i for i in z.infolist()
+                if i.filename.lower().endswith("project_settings.config")), None)
+    # Bounded by its own declared size before a byte is read, so the config cannot be the
+    # bomb — and the bomb, if it is one, was caught above before this line runs.
+    if cfg and not cfg.is_dir() and cfg.file_size < 4 * 1024 * 1024:
+        try:
+            d = json.loads(z.read(cfg.filename))
+        except Exception:
+            d = {}
+        post = d.get("post_process") if isinstance(d, dict) else None
+        if post:
+            found.append((cfg.filename,
+                          f"{len(post)} post-processing command(s) — the slicer runs those "
+                          f"as shell commands on the bench, and this list came with the file"))
+    return found
+
+
 def listing(src: Path):
     """What is inside, by name only, so the report can say what was thrown away. Names are
-    read; nothing in the archive is executed, and nothing is extracted."""
-    unpacked, names = 0, []
+    read; nothing in the archive is executed, and nothing is extracted. A container carrying
+    anything from contraband() stops here, before the slicer is handed the file."""
+    names = []
     with zipfile.ZipFile(src) as z:
+        bad = contraband(z)
+        if bad:
+            entry, why = bad[0]
+            rest = (f"\n          and {len(bad)-1} more: "
+                    + ", ".join(n for n, _ in bad[1:4])) if len(bad) > 1 else ""
+            sys.exit(f"[intake] refused {src.name} — {entry}: {why}.{rest}")
         for i in z.infolist():
-            unpacked += i.file_size
-            if unpacked > MAX_UNPACKED_MB * 1024 * 1024:
-                sys.exit(f"[intake] this .3mf unpacks to more than {MAX_UNPACKED_MB} MB — refused")
             if not i.is_dir():
                 names.append(i.filename)
     return names
