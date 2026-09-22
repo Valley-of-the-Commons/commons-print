@@ -33,7 +33,6 @@ from pathlib import Path
 
 from . import config as CFG
 
-ORCA = Path("/Applications/OrcaSlicer.app/Contents/Resources/profiles")
 PRINTERS = CFG.PRINTERS
 
 # Nozzle hardness in Rockwell C. The X1-Carbon ships hardened steel, which is why it can run
@@ -58,9 +57,15 @@ def active_printer():
 def _load(vendor="BBL"):
     """Every profile keyed by name. Inheritance is resolved on demand, not up front —
     the chains are shallow and this keeps a cold start under a second."""
+    root = CFG.orca_profiles()
+    if not root:
+        # An empty database, not an exception: this is a library call, and the entry points
+        # above say the sentence. A caller with no database gets "nothing matches", which is
+        # a refusal it already knows how to report.
+        return {}
     out = {}
     for kind in ("filament", "machine", "process"):
-        for f in glob.glob(str(ORCA / vendor / kind / "**" / "*.json"), recursive=True):
+        for f in glob.glob(str(root / vendor / kind / "**" / "*.json"), recursive=True):
             try:
                 d = json.load(open(f))
                 if d.get("name"):
@@ -272,8 +277,8 @@ def _flag(argv, name):
 CMDS = {"printers": cmd_printers, "filaments": cmd_filaments, "show": cmd_show, "check": cmd_check}
 
 if __name__ == "__main__":
-    if not ORCA.exists():
-        sys.exit("[profiles] OrcaSlicer not found — brew install --cask orcaslicer")
+    if not CFG.orca_profiles():
+        sys.exit("[profiles] " + CFG.PROFILES_MISSING)
     if len(sys.argv) < 2 or sys.argv[1] not in CMDS:
         sys.exit(__doc__)
     sys.exit(CMDS[sys.argv[1]](sys.argv[2:]) or 0)

@@ -5,6 +5,10 @@ python3 workshop.py doctor      # OrcaSlicer is the only requirement
 python3 workshop.py selftest    # four shapes with known answers, ~40 seconds
 ```
 
+`doctor` names the path it found the slicer at. Set `COMMONS_PRINT_ORCA` (the binary) or
+`COMMONS_PRINT_ORCA_PROFILES` (the vendor profile database) if yours is somewhere the
+search in `gates/config.py` does not look. No gate hardcodes a slicer path.
+
 No build step, no package manager, no dependencies. Every gate is a plain module that also
 runs on its own:
 

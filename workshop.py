@@ -214,10 +214,16 @@ def show(r):
 def cmd_doctor(_argv):
     """In blocking order: the thing that stops you first is listed first."""
     checks = []
-    orca = Path("/Applications/OrcaSlicer.app/Contents/MacOS/OrcaSlicer")
-    checks.append(("OrcaSlicer", orca.exists(),
-                   "the slicer behind gates 1b, 2 and 3",
-                   "brew install --cask orcaslicer"))
+    orca, where = CFG.find_orca()
+    checks.append(("OrcaSlicer", bool(orca),
+                   "the slicer behind gates 1b, 2 and 3"
+                   + (f" — found at {where}" if orca else " — not found anywhere we looked"),
+                   CFG.ORCA_MISSING))
+    profiles = CFG.orca_profiles()
+    checks.append(("profile database", bool(profiles),
+                   "the vendor's own temperatures and nozzle rules"
+                   + (f" — {profiles}" if profiles else " — not beside the slicer"),
+                   CFG.PROFILES_MISSING))
     checks.append(("Bambu Studio", BAMBU_STUDIO.exists(),
                    "where the router presses print — the release step has no other home",
                    "download it from bambulab.com; Handy cannot send an arbitrary .3mf"))
@@ -242,8 +248,13 @@ def cmd_doctor(_argv):
     for name, ok, why, fix in checks:
         print(f"    {OK if ok else STOP} {name:20s} {why}")
         if not ok:
-            print(f"       {' '*20} → {fix}")
-    blocking = [c for c in checks[:3] if not c[1]]
+            # A fix can be several lines. They are written with the gutter a `sys.exit` needs,
+            # so strip that and re-indent to this column rather than printing two indents.
+            head, *rest = fix.splitlines()
+            print(f"       {' '*20} → {head}")
+            for line in rest:
+                print(f"       {' '*20}   {line[8:] if line.startswith(' ' * 8) else line.lstrip()}")
+    blocking = [c for c in checks[:-1] if not c[1]]   # everything but the LAN lane
     print(f"\n  {'READY TO TEST' if not blocking else str(len(blocking)) + ' thing(s) in the way'}\n")
     return 0 if not blocking else 1
 
@@ -284,6 +295,36 @@ def _box(w, d, h, skip_top=False):
     return t
 
 
+def _resolver_cases():
+    """The slicer resolver, checked on whatever machine this is. It earns its own cases
+    because it is the one piece of the stack that has to behave on a bench where OrcaSlicer
+    is NOT installed: the answer there is a sentence somebody can act on, and the way to
+    get that wrong is a traceback five frames into subprocess."""
+    import os, tempfile
+    cases = []
+
+    keep = os.environ.get(CFG.ORCA_ENV)
+    try:
+        fake = Path(tempfile.mkdtemp(prefix="selftest-orca-")) / "orca-slicer"
+        fake.write_text("#!/bin/sh\nexit 0\n")
+        fake.chmod(0o755)
+        os.environ[CFG.ORCA_ENV] = str(fake)
+        cmd, where = CFG.find_orca()
+        cases.append((f"${CFG.ORCA_ENV} wins", cmd == [str(fake)] and where == "$" + CFG.ORCA_ENV))
+    finally:
+        os.environ.pop(CFG.ORCA_ENV, None)
+        if keep is not None:
+            os.environ[CFG.ORCA_ENV] = keep
+
+    # The refusal has to name both halves — what to install, and what to set when it is
+    # installed somewhere this did not look. A sentence missing either one sends somebody
+    # to the source to find out what the variable is called.
+    cases.append(("the refusal names install and override",
+                  "brew install" in CFG.ORCA_MISSING and "flatpak install" in CFG.ORCA_MISSING
+                  and CFG.ORCA_ENV in CFG.ORCA_MISSING))
+    return cases
+
+
 def cmd_selftest(argv):
     """Known shapes with known answers. Each case names the gate that must fire, so a gate
     that quietly stops refusing anything shows up here rather than on the plate."""
@@ -315,7 +356,13 @@ def cmd_selftest(argv):
         for g in r.gates:
             if g["state"] == "stop":
                 print(f"       {' '*20} {g['lines'][0][:90]}")
-    print(f"\n  {'✅ every gate fired where it should' if not bad else STOP + f' {bad} gate(s) did not behave'}\n")
+    cmd, where = CFG.find_orca()
+    print(f"\n  the slicer · {where if cmd else 'not found — the four shapes above cannot slice'}\n")
+    for name, hit in _resolver_cases():
+        bad += 0 if hit else 1
+        print(f"    {OK if hit else STOP} {name}")
+
+    print(f"\n  {'✅ every gate fired where it should' if not bad else STOP + f' {bad} check(s) did not behave'}\n")
     return 1 if bad else 0
 
 

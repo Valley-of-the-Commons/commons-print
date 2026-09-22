@@ -44,10 +44,9 @@ Usage:
 import json, math, subprocess, sys, tempfile
 from pathlib import Path
 
+from . import config as CFG
 from . import mesh as S
 from . import profiles as P
-
-ORCA_BIN = Path("/Applications/OrcaSlicer.app/Contents/MacOS/OrcaSlicer")
 
 CONTACT_EPS_MM = 0.05      # a twentieth of a millimetre: inside any first layer
 MIN_CONTACT_MM2 = 25.0     # below this there is nothing for the plate to hold, whatever the ratio
@@ -201,11 +200,16 @@ def decide(m):
 def reorient(src: Path, out: Path):
     """OrcaSlicer's own auto-orientation, made permanent by exporting the mesh back out.
     `--export-stl` lands in a `stl/` folder under the output directory."""
+    orca = CFG.orca_command()
+    if not orca:
+        # No slicer, no turn. The caller already has a sentence for a part that could not be
+        # re-oriented, and `workshop.py doctor` is where "no slicer" gets said properly.
+        return None
     tmp = Path(tempfile.mkdtemp(prefix="stance-"))
-    subprocess.run([str(ORCA_BIN), "--datadir", str(tmp / "dd"), "--debug", "2",
-                    "--logfile", str(tmp / "orient.log"),
-                    "--orient", "1", "--ensure-on-bed",
-                    "--export-stl", "--outputdir", str(tmp), str(src)],
+    subprocess.run(orca + ["--datadir", str(tmp / "dd"), "--debug", "2",
+                           "--logfile", str(tmp / "orient.log"),
+                           "--orient", "1", "--ensure-on-bed",
+                           "--export-stl", "--outputdir", str(tmp), str(src)],
                    capture_output=True, text=True, timeout=600)
     got = sorted(tmp.rglob("*.stl"))
     if not got:
