@@ -32,13 +32,20 @@ family, the five screens, and a queue.
 
 ## What belongs somewhere else
 
-- **Dependencies.** Stdlib only is what makes this droppable onto a Raspberry Pi next to the
-  printer. If a gate needs numpy, that gate probably needs less ambition.
+- **Dependencies in `gates/`.** Stdlib only is what makes this droppable onto a Raspberry Pi
+  next to the printer. If a gate needs numpy, that gate probably needs less ambition. The
+  screens are the second tier: `desk/` carries its own `requirements.txt` and depends on
+  `gates/`, never the other way round. Anything numpy-based in `gates/` is an optional extra
+  that is skipped cleanly when numpy is not installed.
 - **Anything reaching a live service.** No keys, no endpoints, no project identifiers, so
   this stays safe for anyone to fork. `config/shelf.json` is gitignored for exactly this
   reason and `config/shelf.example.json` is the shape it takes.
-- **The send.** Driving a printer over MQTT belongs in whatever runs on the bench's own
-  network, not in the repo people fork. `docs/the-router.md` is the argument.
+- **The send, unless a bench opts in.** The default lane ends at a plate-ready `.3mf` and a
+  person presses print — `docs/the-router.md` is the argument, and nothing in `gates/` ever
+  talks to a printer. A bench whose owner has already chosen LAN-only + Developer Mode can
+  opt into the Bambuddy lane in `release/`: off unless configured, and even then auto-start
+  is off by default, so a person still releases every job from the queue. Either way the
+  slice happens at release, not at submit.
 
 ## Style
 
