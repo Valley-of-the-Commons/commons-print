@@ -22,7 +22,7 @@ Options for `run`:
   --no-turn           measure the stance but leave the part as the author left it
   --json              the whole verdict, machine-readable
 """
-import json, math, struct, subprocess, sys, time
+import json, math, struct, subprocess, sys, time, zipfile
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -63,7 +63,14 @@ def run_gates(src, argv):
     # ---- 0 · intake -------------------------------------------------------------
     f = Path(src).expanduser().resolve()
     if f.suffix.lower() == ".3mf":
-        names = IN.listing(f)
+        try:
+            names = IN.listing(f)
+        except SystemExit as e:
+            # A container the bench will not open is gate 0 refusing, not the report dying
+            # half-written. (A typed refusal is the better shape for this and is proposed
+            # separately; this keeps intake.py's own idiom until then.)
+            r.gate("0", "intake", "stop", [str(e)])
+            return r
         stls = IN.sanitize(f, r.dir / "mesh")
         mesh = stls[0]
         risky = [n for n in names if "gcode" in n.lower() or "settings" in n.lower()]
@@ -374,6 +381,55 @@ def _refusal_cases():
     return cases
 
 
+def _3mf(path, entries):
+    """A container built in code. Committing a crafted .3mf as a binary would mean asking
+    everyone to trust a zip bomb sitting in the repo; a shape built at test time can be read
+    in the diff instead."""
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as z:
+        for name, blob in entries:
+            z.writestr(name, blob)
+    return path
+
+
+def _container_cases():
+    """What gate 0 must refuse before the slicer is handed a file, and — the case that keeps
+    the other four honest — what it must still accept."""
+    import tempfile
+    d = Path(tempfile.mkdtemp(prefix="selftest-3mf-"))
+    model = [("3D/3dmodel.model", b"<model unit=\"millimeter\"/>"),
+             ("Metadata/model_settings.config", b"<config/>")]
+
+    cases = [
+        ("a plain model container is accepted", model, True),
+        ("a container with a sliced plate",
+         model + [("Metadata/plate_1.gcode", b"G1 X0 Y0 E1 F1200\n" * 200)], False),
+        ("a container with a post-processing command",
+         model + [("Metadata/project_settings.config",
+                   json.dumps({"post_process": ["/bin/echo ran on the bench"]}).encode())], False),
+        ("a container with an executable in it",
+         model + [("Auxiliaries/setup.sh", b"#!/bin/sh\nexit 0\n")], False),
+        # 20 MB of zeros is 19 KB on disk and 1028:1. It never reaches the 800 MB cap, so
+        # the cap alone would hand it to the slicer and let that be the thing that runs out
+        # of memory.
+        ("a zip bomb, 20 MB out of 19 KB",
+         model + [("3D/Objects/object_1.model", b"\0" * 20_000_000)], False),
+        ("an entry that unpacks outside the container",
+         model + [("../escape.model", b"x")], False),
+    ]
+
+    out = []
+    for name, entries, want_ok in cases:
+        f = _3mf(d / (name.replace(" ", "-").replace(",", "") + ".3mf"), entries)
+        t0 = time.time()
+        with zipfile.ZipFile(f) as z:
+            bad = IN.contraband(z)
+        ms = (time.time() - t0) * 1000
+        got_ok = not bad
+        detail = "" if got_ok else f"  ({bad[0][1][:54]}…)"
+        out.append((f"{name} · {ms:.1f} ms{detail}", got_ok == want_ok))
+    return out
+
+
 def cmd_selftest(argv):
     """Known shapes with known answers. Each case names the gate that must fire, so a gate
     that quietly stops refusing anything shows up here rather than on the plate."""
@@ -412,6 +468,10 @@ def cmd_selftest(argv):
         print(f"    {OK if hit else STOP} {name}")
     print("\n  refusals · the same sentences, carried rather than exited\n")
     for name, hit in _refusal_cases():
+        bad += 0 if hit else 1
+        print(f"    {OK if hit else STOP} {name}")
+    print("\n  containers · what gate 0 opens, and what it will not\n")
+    for name, hit in _container_cases():
         bad += 0 if hit else 1
         print(f"    {OK if hit else STOP} {name}")
 

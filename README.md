@@ -80,6 +80,12 @@ nowhere to put an instruction, and gate 2 re-slices from local profiles every ti
 when the incoming file looks perfect. That is what makes "they choose the design, the bench
 chooses the settings" true rather than aspirational.
 
+Two kinds of container are not opened at all, because the slicer is the first thing to read
+the file and it reads it whole: one carrying a plate somebody else already sliced, and one
+carrying `post_process` — a list of shell commands the slicer knows how to run, written by
+whoever made the file. Nothing is lost by refusing them. Gate 2 re-slices from local
+profiles either way, so what was refused is a container that was going to be thrown away.
+
 **Do not ask which filament.** The question only exists if you ask it. `shelf` intersects
 three things nobody has to be troubled for — what is loaded right now, what the vendor's own
 fields say is safe on this machine and nozzle, and whether enough grams remain for the job
