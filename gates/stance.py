@@ -48,6 +48,8 @@ from . import config as CFG
 from . import mesh as S
 from . import profiles as P
 
+from .refusal import Refusal, cli
+
 CONTACT_EPS_MM = 0.05      # a twentieth of a millimetre: inside any first layer
 MIN_CONTACT_MM2 = 25.0     # below this there is nothing for the plate to hold, whatever the ratio
 GOOD_RATIO = 0.60          # sits on a real face — print as it lies
@@ -222,15 +224,18 @@ def reorient(src: Path, out: Path):
 # ---------- commands ----------
 
 def _load(p):
+    """Every way this can fail is a Refusal rather than an exit: `measure` and `decide` are
+    the two functions a screen calls, and everything that reaches them comes through here."""
     p = Path(p).expanduser().resolve()
     if not p.exists():
-        sys.exit(f"[stance] no such file: {p}")
+        raise Refusal("stance.no_file", f"[stance] no such file: {p}")
     if p.suffix.lower() != ".stl":
-        sys.exit(f"[stance] measure an STL. Run it through intake.py first — {p.suffix} may "
-                 f"carry more than a shape.")
+        raise Refusal("stance.not_a_mesh",
+                      f"[stance] measure an STL. Run it through intake.py first — {p.suffix} may "
+                      f"carry more than a shape.")
     tris = S.read_stl(p)
     if not tris:
-        sys.exit(f"[stance] no triangles in {p.name}")
+        raise Refusal("stance.no_triangles", f"[stance] no triangles in {p.name}")
     return p, tris
 
 
@@ -312,4 +317,4 @@ CMDS = {"check": cmd_check, "fix": cmd_fix}
 if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in CMDS:
         sys.exit(__doc__)
-    sys.exit(CMDS[sys.argv[1]](sys.argv[2:]) or 0)
+    sys.exit(cli(CMDS[sys.argv[1]], sys.argv[2:]) or 0)
