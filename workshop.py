@@ -65,13 +65,12 @@ def run_gates(src, argv):
     if f.suffix.lower() == ".3mf":
         try:
             names = IN.listing(f)
-        except SystemExit as e:
-            # A container the bench will not open is gate 0 refusing, not the report dying
-            # half-written. (A typed refusal is the better shape for this and is proposed
-            # separately; this keeps intake.py's own idiom until then.)
-            r.gate("0", "intake", "stop", [str(e)])
+            stls = IN.sanitize(f, r.dir / "mesh")
+        except Refusal as e:
+            # A container the bench will not open, or one the slicer cannot read, is gate 0
+            # refusing — not the report dying half-written.
+            r.gate("0", "intake", "stop", [e.sentence] + (e.fix or "").splitlines())
             return r
-        stls = IN.sanitize(f, r.dir / "mesh")
         mesh = stls[0]
         risky = [n for n in names if "gcode" in n.lower() or "settings" in n.lower()]
         lines = [f"{len(names)} parts in the container, none of them carried over — "
@@ -427,6 +426,18 @@ def _container_cases():
         got_ok = not bad
         detail = "" if got_ok else f"  ({bad[0][1][:54]}…)"
         out.append((f"{name} · {ms:.1f} ms{detail}", got_ok == want_ok))
+
+    # The same refusal through the whole run, which is what a person actually meets: the
+    # report has to come back with gate 0 stopped and a sentence, not die inside intake.
+    bad = _3mf(d / "run-sliced-plate.3mf",
+               model + [("Metadata/plate_1.gcode", b"G1 X0 Y0 E1 F1200\n" * 200)])
+    try:
+        r = run_gates(str(bad), [])
+        g0 = next((g for g in r.gates if g["n"] == "0"), None)
+        ok = bool(g0) and g0["state"] == "stop" and "refused" in g0["lines"][0]
+    except BaseException:
+        ok = False
+    out.append(("a whole run on it stops at gate 0 with a sentence", ok))
     return out
 
 

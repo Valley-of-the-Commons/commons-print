@@ -46,6 +46,7 @@ from pathlib import Path
 from . import config as CFG
 
 from . import profiles as P
+from .refusal import Refusal, cli
 
 QUEUE = CFG.RUNS / "queue"
 MW_API = "https://makerworld.com/api/v1/design-service/design/{}"
@@ -295,7 +296,7 @@ def listing(src: Path):
             entry, why = bad[0]
             rest = (f"\n          and {len(bad)-1} more: "
                     + ", ".join(n for n, _ in bad[1:4])) if len(bad) > 1 else ""
-            sys.exit(f"[intake] refused {src.name} — {entry}: {why}.{rest}")
+            raise Refusal("intake.contraband", f"[intake] refused {src.name} — {entry}: {why}.{rest}")
         for i in z.infolist():
             if not i.is_dir():
                 names.append(i.filename)
@@ -319,15 +320,16 @@ def sanitize(src: Path, outdir: Path):
     outdir.mkdir(parents=True, exist_ok=True)
     orca = CFG.orca_command()
     if not orca:
-        sys.exit("[intake] " + CFG.ORCA_MISSING)
+        raise Refusal("intake.no_slicer", "[intake] " + CFG.ORCA_MISSING)
     r = subprocess.run(orca + ["--datadir", str(outdir / "dd"), "--debug", "2",
                                "--logfile", str(outdir / "convert.log"),
                                "--export-stl", "--outputdir", str(outdir), str(src)],
                        capture_output=True, text=True, timeout=600)
     stls = sorted(outdir.rglob("*.stl"))
     if not stls:
-        sys.exit(f"[intake] the slicer could not read {src.name} — it is not a model file we "
-                 f"can gate. See {outdir/'convert.log'}")
+        raise Refusal("intake.unreadable",
+                      f"[intake] the slicer could not read {src.name} — it is not a model file we "
+                      f"can gate. See {outdir/'convert.log'}")
     return stls
 
 
@@ -414,4 +416,4 @@ CMDS = {"link": cmd_link, "strip": cmd_strip, "open": cmd_open}
 if __name__ == "__main__":
     if len(sys.argv) < 2 or sys.argv[1] not in CMDS:
         sys.exit(__doc__)
-    sys.exit(CMDS[sys.argv[1]](sys.argv[2:]) or 0)
+    sys.exit(cli(CMDS[sys.argv[1]], sys.argv[2:]) or 0)

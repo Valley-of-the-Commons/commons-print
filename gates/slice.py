@@ -306,7 +306,12 @@ def cmd_run(argv):
 
     orient = "1" if (P._flag(argv, "--orient") or "off").lower() == "auto" else "0"
     log = outdir / "slicer.log"
-    cmd = CFG.orca_command() + [
+    orca = CFG.orca_command()
+    if not orca:
+        # Reached through workshop.py as well as its own __main__, so the guard lives here
+        # too: without it a bench with no slicer gets `None + list`, not this sentence.
+        sys.exit("[slice] " + CFG.ORCA_MISSING)
+    cmd = orca + [
         "--datadir", str(work / "datadir"), "--debug", "4",
         "--logfile", str(log),
         "--load-settings", f"{work/'machine.json'};{work/'process.json'}",
